@@ -342,19 +342,26 @@ function applyGlobalThemeCss(cssCode) {
 async function exportAllData() {
     try {
         showNotification('正在收集数据…', 'info', 2000);
+        const isMediaKey = (key) => {
+            if (!key) return false;
+            return /stickerLibrary|avatar|image|photo|bg|background|wallpaper|cover|banner|annHeaderBg_|chatBackground/i.test(String(key));
+        };
         const keys = await localforage.keys();
         const idbData = {};
         for (const k of keys) {
+            if (isMediaKey(k)) continue;
             try { idbData[k] = await localforage.getItem(k); } catch(e) {}
         }
         const lsData = {};
         for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i);
-            if (k) lsData[k] = localStorage.getItem(k);
+            if (!k || isMediaKey(k)) continue;
+            lsData[k] = localStorage.getItem(k);
         }
         const payload = {
             version: '3.1-full', appName: 'ChatApp',
             exportDate: new Date().toISOString(), type: 'full',
+            mediaExcluded: true,
             indexedDB: idbData, localStorage: lsData
         };
         const str = JSON.stringify(payload, null, 2);
@@ -374,7 +381,13 @@ async function importAllData(file) {
             let raw = e.target.result;
             if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
             const data = JSON.parse(raw);
-            if (data.type !== 'full') {
+            const fullLike = (
+                data.type === 'full' ||
+                (typeof data.type === 'string' && data.type.includes('full-backup')) ||
+                !!data.indexedDB ||
+                !!data.localforage
+            );
+            if (!fullLike) {
                 if (typeof importChatHistory === 'function') importChatHistory(file);
                 return;
             }
@@ -465,7 +478,7 @@ async function importAllData(file) {
 
             showNotification('正在恢复数据…', 'info', 3000);
 
-            const indexedDB = data.indexedDB || {};
+            const indexedDB = data.indexedDB || data.localforage || {};
             const localStorageData = data.localStorage || {};
 
             const selectedCategories = categories.filter(c => selectedCats.includes(c.id));
