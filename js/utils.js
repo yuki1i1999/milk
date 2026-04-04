@@ -341,73 +341,76 @@ function applyGlobalThemeCss(cssCode) {
 
 async function exportAllData() {
     try {
-        showNotification('正在收集数据…', 'info', 2000);
-        const isMediaKey = (key) => {
-            if (!key) return false;
-            return /stickerLibrary|avatar|image|photo|bg|background|wallpaper|cover|banner|annHeaderBg_|chatBackground/i.test(String(key));
-        };
-        const keys = await localforage.keys();
-        const idbData = {};
-        for (const k of keys) {
-            if (isMediaKey(k)) continue;
-            try { idbData[k] = await localforage.getItem(k); } catch(e) {}
+        if (typeof ChatBackup !== 'undefined' && ChatBackup.exportBackupToFile) {
+            await ChatBackup.exportBackupToFile({
+                inclMsgs: true,
+                inclSet: true,
+                inclCustom: true,
+                inclAnn: true,
+                inclThemes: true,
+                inclDg: true,
+                inclStickers: true
+            });
+            return;
         }
-        const lsData = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (!k || isMediaKey(k)) continue;
-            lsData[k] = localStorage.getItem(k);
-        }
-        const payload = {
-            version: '3.1-full', appName: 'ChatApp',
-            exportDate: new Date().toISOString(), type: 'full',
-            mediaExcluded: true,
-            indexedDB: idbData, localStorage: lsData
-        };
-        const str = JSON.stringify(payload, null, 2);
-        const fileName = `chat-full-backup-${new Date().toISOString().slice(0,10)}.json`;
-        const blob = new Blob([str], { type: 'application/json' });
-        downloadFileFallback(blob, fileName);
-    } catch(e) {
+        showNotification('备份模块未加载', 'error');
+    } catch (e) {
         console.error('全量导出失败:', e);
         showNotification('全量导出失败，请重试', 'error');
     }
 }
 
 async function importAllData(file) {
+    if (!file) return;
+    if (file.size > 120 * 1024 * 1024) {
+        showNotification('文件过大（>120MB），请确认是否为正确备份', 'error');
+        return;
+    }
     const reader = new FileReader();
     reader.onload = async (e) => {
         try {
             let raw = e.target.result;
+            if (typeof raw !== 'string') {
+                showNotification('无法读取该备份文件', 'error');
+                return;
+            }
             if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
             const data = JSON.parse(raw);
-            const fullLike = (
-                data.type === 'full' ||
-                (typeof data.type === 'string' && data.type.includes('full-backup')) ||
-                !!data.indexedDB ||
-                !!data.localforage
-            );
+            const fullLike = typeof ChatBackup !== 'undefined' && ChatBackup.isFullBackupShape
+                ? ChatBackup.isFullBackupShape(data)
+                : (
+                    data.type === 'full' ||
+                    (typeof data.type === 'string' && data.type.includes('full-backup')) ||
+                    !!data.indexedDB ||
+                    !!data.localforage
+                );
             if (!fullLike) {
                 if (typeof importChatHistory === 'function') importChatHistory(file);
                 return;
             }
+            if (typeof ChatBackup === 'undefined' || !ChatBackup.applyBackupToStorage) {
+                showNotification('备份模块未加载，请刷新页面重试', 'error');
+                return;
+            }
+            if (!confirm('导入全量备份将按你的选择覆盖对应数据。\n\n头像/背景等如勾选导入会写入备份中的内容。\n\n确定继续吗？')) return;
+
             const categories = [
                 {
                     id: 'chat',
-                    label: '聊天记录/会话',
-                    indexedDBNeedles: ['chatMessages', 'sessionList', 'chatSettings'],
-                    localStorageNeedles: []
+                    label: '聊天记录 / 会话 / 红包',
+                    indexedDBNeedles: ['chatMessages', 'sessionList', 'chatSettings', 'showPartnerNameInChat', 'envelopeData', 'pending_envelope'],
+                    localStorageNeedles: ['groupChatSettings']
                 },
                 {
                     id: 'replies',
-                    label: '回复/拍一拍/氛围',
+                    label: '回复 / 拍一拍 / 氛围',
                     indexedDBNeedles: ['customReplies', 'customPokes', 'customStatuses', 'customMottos', 'customIntros', 'customEmojis', 'customReplyGroups'],
                     localStorageNeedles: ['disabledReplyItems', 'pokeSym_my', 'pokeSym_partner', 'pokeSym_my_custom', 'pokeSym_partner_custom']
                 },
                 {
                     id: 'stickers',
-                    label: '表情库(贴纸)',
-                    indexedDBNeedles: ['stickerLibrary'],
+                    label: '表情库（贴纸）',
+                    indexedDBNeedles: ['stickerLibrary', 'myStickerLibrary'],
                     localStorageNeedles: ['disabledStickerItems']
                 },
                 {
@@ -424,9 +427,16 @@ async function importAllData(file) {
                 },
                 {
                     id: 'themes',
-                    label: '主题与外观',
+                    label: '主题 / 外观 / 图库',
                     indexedDBNeedles: ['customThemes', 'themeSchemes', 'backgroundGallery', 'chatBackground', 'partnerAvatar', 'myAvatar', 'partnerPersonas'],
                     localStorageNeedles: []
+                },
+                {
+                    id: 'dg',
+                    label: '每日公告 / 运势 / 天气',
+                    indexedDBNeedles: ['dg_custom_data', 'dg_status_pool', 'weekly_fortune', 'daily_fortune'],
+                    localStorageNeedles: [],
+                    localStoragePrefixes: ['customWeather_']
                 }
             ];
 
@@ -444,6 +454,7 @@ async function importAllData(file) {
                     ">
                         <div style="width:36px;height:4px;border-radius:2px;background:var(--border-color);margin:0 auto 14px;"></div>
                         <div style="font-size:16px;font-weight:800;color:var(--text-primary);margin-bottom:10px;">全量恢复：选择要导入的部分</div>
+                        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">支持 v4 精简备份与旧版 JSON；图片以去重表还原。</div>
                         <div style="display:flex;flex-direction:column;gap:10px;max-height:60vh;overflow:auto;padding-right:6px;">
                             ${categories.map(c => {
                                 return `
@@ -460,7 +471,7 @@ async function importAllData(file) {
                         </div>
                     </div>
                 `;
-                overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); resolve(null); });
+                overlay.addEventListener('click', (ev) => { if (ev.target === overlay) { overlay.remove(); resolve(null); } });
                 document.getElementById('full-imp-cancel').onclick = () => { overlay.remove(); resolve(null); };
                 document.getElementById('full-imp-confirm').onclick = () => {
                     const selected = Array.from(overlay.querySelectorAll('input[type=checkbox]:checked'))
@@ -474,37 +485,20 @@ async function importAllData(file) {
             const selectedCats = await pickSelected();
             if (!selectedCats || selectedCats.length === 0) return;
 
-            const matchAnyNeedles = (key, needles) => needles.some(n => key && key.includes(n));
-
             showNotification('正在恢复数据…', 'info', 3000);
-
-            const indexedDB = data.indexedDB || data.localforage || {};
-            const localStorageData = data.localStorage || {};
-
-            const selectedCategories = categories.filter(c => selectedCats.includes(c.id));
-
-            if (data.indexedDB) {
-                for (const [k, v] of Object.entries(indexedDB)) {
-                    const ok = selectedCategories.some(c => matchAnyNeedles(k, c.indexedDBNeedles));
-                    if (!ok) continue;
-                    try { await localforage.setItem(k, v); } catch (err) {}
-                }
-            }
-
-            if (data.localStorage) {
-                for (const [k, v] of Object.entries(localStorageData)) {
-                    const ok = selectedCategories.some(c => matchAnyNeedles(k, c.localStorageNeedles));
-                    if (!ok) continue;
-                    try { localStorage.setItem(k, v); } catch (err) {}
-                }
-            }
+            await ChatBackup.applyBackupToStorage(data, {
+                selective: true,
+                selectedCategoryIds: selectedCats,
+                categories
+            });
 
             showNotification('恢复完成，即将刷新页面…', 'success', 2000);
             setTimeout(() => location.reload(), 2200);
-        } catch(e) {
-            console.error('全量导入失败:', e);
+        } catch (err) {
+            console.error('全量导入失败:', err);
             showNotification('文件损坏或格式不兼容', 'error');
         }
     };
-    reader.readAsText(file);
+    reader.onerror = () => showNotification('文件读取失败', 'error');
+    reader.readAsText(file, 'UTF-8');
 }
