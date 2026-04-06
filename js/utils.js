@@ -633,29 +633,43 @@ function updateCloudSyncStatusUI(state) {
 }
 
 function askSupabaseConfigSimple() {
-    const existing = getCloudSyncConfig() || {};
-    const url = prompt(
-        '【配置第 1/2 步】\n请粘贴你的 Project URL\n\n请在界面最左侧的\nIntegrations————Data API————API URL，点击copy，返回填写此url',
-        existing.url || ''
-    );
-    if (url === null) return null;
+    return new Promise(resolve => {
+        const modal = document.getElementById('supabase-config-modal');
+        const urlInput = document.getElementById('supabase-url-input');
+        const keyInput = document.getElementById('supabase-key-input');
+        const saveBtn = document.getElementById('save-supabase-config');
+        const cancelBtn = document.getElementById('cancel-supabase-config');
 
-    const anonKey = prompt(
-        '【配置第 2/2 步】\n请粘贴你的 Publishable key (anon key)\n\n请在界面最左侧的Project settings——Settings——API Keys——Publishable key，点击copy，返回填写此url',
-        existing.anonKey || ''
-    );
-    if (anonKey === null) return null;
+        if (!modal || !urlInput || !keyInput || !saveBtn || !cancelBtn) {
+            return resolve(null);
+        }
 
-    const clean = {
-        url: (url || '').trim().replace(/\/+$/, ''),
-        anonKey: (anonKey || '').trim()
-    };
-    if (!clean.url || !clean.anonKey) {
-        showNotification('Supabase 配置不能为空', 'error');
-        return null;
-    }
-    setCloudSyncConfig(clean);
-    return clean;
+        const existing = getCloudSyncConfig() || {};
+        urlInput.value = existing.url || '';
+        keyInput.value = existing.anonKey || '';
+
+        const closeAndResolve = (value) => {
+            hideModal(modal);
+            resolve(value);
+        };
+
+        saveBtn.onclick = () => {
+            const clean = {
+                url: (urlInput.value || '').trim().replace(/\/+$/, ''),
+                anonKey: (keyInput.value || '').trim()
+            };
+            if (!clean.url || !clean.anonKey) {
+                showNotification('Supabase 配置不能为空', 'error');
+                return;
+            }
+            setCloudSyncConfig(clean);
+            closeAndResolve(clean);
+        };
+
+        cancelBtn.onclick = () => closeAndResolve(null);
+        
+        showModal(modal);
+    });
 }
 
 function getSupabaseClient() {
@@ -670,7 +684,14 @@ function getSupabaseClient() {
 }
 
 async function ensureSupabaseTableGuide() {
-    const sqlCode = `-- 1. 如果旧表存在，安全地删除它
+    return new Promise(resolve => {
+        const modal = document.getElementById('supabase-guide-modal');
+        const sqlDisplay = document.getElementById('supabase-sql-code-display');
+        const closeBtn = document.getElementById('close-supabase-guide');
+
+        if (!modal || !sqlDisplay || !closeBtn) return resolve();
+
+        const sqlCode = `-- 1. 如果旧表存在，安全地删除它
 DROP TABLE IF EXISTS public.chat_backups;
 
 -- 2. 创建新的、字段类型完全正确的备份表
@@ -685,19 +706,16 @@ CREATE TABLE public.chat_backups (
 
 -- 3. 关闭这张表的行级安全策略 (RLS)
 ALTER TABLE public.chat_backups DISABLE ROW LEVEL SECURITY;`;
+        
+        sqlDisplay.value = sqlCode;
 
-    alert(
-        '【云同步设置教程】\n' +
-        '请严格按照以下步骤设置云同步，全程大约需要 5-10 分钟。\n' +
-        '\n【第一步：注册并创建项目】\n' +
-        '点击云端备份同步最右侧的箭头，打开supabase网站，使用gihub账户或者邮箱注册一个免费账户，注册完跳转到创建组织/是否个人，直接点击create跳过。\n' +
-        '刚注册会直接弹出一个project的创建界面，Project name自己随便取个名字，Database password记住写个复杂的密码，而且要记住，1. Enable Data API选：开启。2. Enable automatic RLS开启，其他不用管，点击create new project。\n' +
-        '\n【第二步：运行 SQL 代码】\n' +
-        '刚创建完 Project 后，不要立刻操作。等待五分钟，status显示healthy后，在最左侧找到SQL Editor点击，将下一个弹窗提供的SQL代码完整复制到右边的大框里，点击绿色的run按钮，返回Succecc.No rows returned。\n' +
-        '\n【第三步：获取并填写配置信息】\n' +
-        '完成前两步后，关闭本教程，再次点击“云端备份同步”那一行，会弹出输入框让你填写配置信息。'
-    );
-    prompt("【第 ② 步】请复制下面的全部 SQL 代码，然后在 Supabase SQL Editor 中运行：", sqlCode);
+        closeBtn.onclick = () => {
+            hideModal(modal);
+            resolve();
+        };
+
+        showModal(modal);
+    });
 }
 
 async function fetchCloudBackupMeta() {
@@ -988,18 +1006,16 @@ window.openSupabaseGuide = async function(openWebsite) {
         try {
             window.open('https://supabase.com/dashboard/projects', '_blank');
         } catch (e) {}
+        await ensureSupabaseTableGuide();
+    } else {
+        const cfg = await askSupabaseConfigSimple();
+        if (!cfg) {
+            showNotification('你还没有保存云端配置', 'warning', 3500);
+            return;
+        }
+        await refreshCloudSyncInfo();
+        showNotification('云端配置已保存成功', 'success', 2500);
     }
-
-    await ensureSupabaseTableGuide();
-
-    const cfg = askSupabaseConfigSimple();
-    if (!cfg) {
-        showNotification('你还没有保存云端配置', 'warning', 3500);
-        return;
-    }
-
-    await refreshCloudSyncInfo();
-    showNotification('云端配置已保存成功', 'success', 2500);
 };
 
 window.checkSupabaseCloud = async function() {
