@@ -31,7 +31,12 @@ let _batchModeTarget = 'custom'; // 'custom' or 'stickers' (depends on currentSu
 let _searchVisible = false;
 let _searchQuery = '';
 let _searchDebounceTimer = null;
-let _activeGroupFilter = null; 
+let _activeGroupFilter = null;
+
+// 一键屏蔽/启用的分组名称关键词（可按需在这里改）
+if (typeof window.replyLibraryQuickToggleGroupNames === 'undefined') {
+    window.replyLibraryQuickToggleGroupNames = [];
+}
 
 const GROUP_COLORS = [
     '#FF6B6B','#FF8E53','#FFC542','#51CF66',
@@ -1051,12 +1056,22 @@ function _showGroupManager() {
         <style>
             @keyframes popIn { from{opacity:0;transform:scale(.93)} to{opacity:1;transform:scale(1)} }
         </style>
-        <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
             <div style="font-size:16px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:8px;">
                 ${ICONS.folder} 分组管理
             </div>
-            <button id="gm-close" style="width:30px;height:30px;border-radius:50%;border:none;background:var(--primary-bg);color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;justify-content:center;">${ICONS.close}</button>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+                <button id="gm-quick-toggle" style="
+                    padding:8px 11px;border:1.5px solid rgba(var(--accent-color-rgb),0.28);border-radius:11px;
+                    background:rgba(var(--accent-color-rgb),0.08);color:var(--accent-color);font-size:12px;cursor:pointer;
+                    font-family:var(--font-family);font-weight:700;display:flex;align-items:center;gap:6px;
+                ">
+                    ${ICONS.eyeOff} 一键屏蔽
+                </button>
+                <button id="gm-close" style="width:30px;height:30px;border-radius:50%;border:none;background:var(--primary-bg);color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;justify-content:center;">${ICONS.close}</button>
+            </div>
         </div>
+        <div id="gm-quick-hint" style="font-size:11px;color:var(--text-secondary);opacity:0.75;line-height:1.5;display:none;"></div>
         <div id="gm-list" style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:55vh;"></div>
         <button id="gm-add" style="
             width:100%;padding:12px;border:1.5px dashed var(--accent-color);border-radius:13px;
@@ -1074,6 +1089,27 @@ function _showGroupManager() {
     panel.querySelector('#gm-close').onclick = () => overlay.remove();
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
     panel.querySelector('#gm-add').onclick = () => { overlay.remove(); _showGroupEditor(null, ctx); };
+}
+
+const APPLE_GROUP_TOGGLE_NAMES = [
+    '称呼','关心','情绪','需求','天气','表达爱','问候','字卡相关','颜色','彼此唯一','evan经历的','应答语','致谢语','疑问语','叮嘱','致歉语','否定','肯定','安慰鼓励','夸赞','食物'
+];
+
+function _toggleAppleGroups() {
+    const ctx = _getGroupCtx('custom');
+    const groups = ctx.groups || [];
+    const normalize = (v) => String(v || '').trim().toLowerCase();
+    const names = APPLE_GROUP_TOGGLE_NAMES.map(normalize).filter(Boolean);
+    const targets = groups.filter(g => names.some(n => normalize(g.name) === n || normalize(g.name).includes(n)));
+    if (targets.length === 0) {
+        showNotification('没有找到可屏蔽的目标分组。', 'info');
+        return;
+    }
+    const allDisabled = targets.every(g => g.disabled);
+    targets.forEach(g => { g.disabled = !allDisabled; });
+    throttledSaveData();
+    renderReplyLibrary();
+    showNotification(allDisabled ? `已启用 ${targets.length} 个目标分组` : `已屏蔽 ${targets.length} 个目标分组`, 'success');
 }
 
 function _showGroupEditor(group, ctx) {
