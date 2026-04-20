@@ -644,6 +644,13 @@
                 </div>
             </div>
 
+            <div class="cs-card" style="margin-top:14px;">
+                <div class="setting-pill-row" id="link-toggle" onclick="window._toggleLinkSettings && window._toggleLinkSettings()">
+                    <span class="setting-pill-icon"><i class="fas fa-link"></i></span>
+                    <span class="setting-pill-label">链接 <span style="font-size:11px;color:var(--text-secondary);font-weight:400;">联动聊天节奏、保活与通知</span></span>
+                    <div class="setting-pill-switch"><div class="setting-pill-knob"></div></div>
+                </div>
+            </div>
 
             <div class="modal-buttons">
                 <button class="modal-btn modal-btn-secondary" id="cancel-settings">关闭</button>
@@ -1348,7 +1355,6 @@
                     </div>
                     <p class="cs-hint">专为顶部昵称不可见的机型设置</p>
                 </div>
-
             </div>
             <div class="cs-footer">
                 <button class="modal-btn modal-btn-secondary" id="back-chat" onclick="(function(){hideModal(document.getElementById('chat-modal'));showModal(document.getElementById('settings-modal'))})()">

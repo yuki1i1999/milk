@@ -1258,7 +1258,7 @@ const autoSendToggle = document.getElementById('auto-send-toggle');
 const autoSendControl = document.getElementById('auto-send-control');
 const autoSendSlider = document.getElementById('auto-send-slider');
 const autoSendValue = document.getElementById('auto-send-value');
-
+const linkToggle = document.getElementById('link-toggle');
 const updateAutoSendUI = () => {
     autoSendToggle.classList.toggle('active', !!settings.autoSendEnabled);
     autoSendControl.style.display = settings.autoSendEnabled ? "flex" : "none";
@@ -1267,7 +1267,41 @@ const updateAutoSendUI = () => {
     autoSendValue.textContent = `${currentVal}分钟`;
 };
 
+const updateLinkUI = () => {
+    if (linkToggle) linkToggle.classList.toggle('active', !!settings.linkEnabled);
+};
+
+window._toggleLinkSettings = function() {
+    settings.linkEnabled = !settings.linkEnabled;
+    settings.autoSendEnabled = !!settings.linkEnabled;
+    settings.autoSendInterval = settings.linkEnabled ? 3 : 5;
+
+    const keepaliveToggle = document.getElementById('keepalive-audio-toggle');
+    const keepaliveSwitch = document.getElementById('keepalive-audio-switch');
+    if (keepaliveToggle) keepaliveToggle.classList.toggle('active', !!settings.linkEnabled);
+    if (keepaliveSwitch) keepaliveSwitch.classList.toggle('active', !!settings.linkEnabled);
+    if (settings.linkEnabled && typeof window._toggleKeepaliveAudio === 'function' && keepaliveToggle && !keepaliveToggle.classList.contains('active')) {
+        window._toggleKeepaliveAudio();
+    } else if (!settings.linkEnabled && typeof window._toggleKeepaliveAudio === 'function' && keepaliveToggle && keepaliveToggle.classList.contains('active')) {
+        window._toggleKeepaliveAudio();
+    }
+
+    const notifToggle = document.getElementById('notif-permission-toggle');
+    if (notifToggle && notifToggle.checked !== !!settings.linkEnabled) {
+        notifToggle.checked = !!settings.linkEnabled;
+        if (typeof window.handleNotifToggle === 'function') window.handleNotifToggle(notifToggle);
+    }
+
+    updateAutoSendUI();
+    updateLinkUI();
+    if (typeof syncToggles === 'function') syncToggles();
+    if (typeof updateUI === 'function') updateUI();
+    if (typeof throttledSaveData === 'function') throttledSaveData();
+    showNotification(`链接已${settings.linkEnabled ? '开启' : '关闭'}`, 'success');
+};
+
 updateAutoSendUI();
+updateLinkUI();
 
 autoSendToggle.addEventListener('click', () => {
     settings.autoSendEnabled = !settings.autoSendEnabled;

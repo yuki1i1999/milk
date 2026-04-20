@@ -554,6 +554,9 @@ window.handleNotifToggle = function(checkbox) {
         if (statusEl) statusEl.textContent = '⚠️ 您的浏览器不支持通知功能，请更换浏览器';
         return;
     }
+    if (window._setLinkStateFromNotificationToggle) {
+        window._setLinkStateFromNotificationToggle(!!checkbox.checked);
+    }
     if (checkbox.checked) {
         Notification.requestPermission().then(function(perm) {
             if (perm === 'granted') {
@@ -583,6 +586,10 @@ window.handleNotifToggle = function(checkbox) {
 document.addEventListener('DOMContentLoaded', function() {
     var toggle   = document.getElementById('notif-permission-toggle');
     var statusEl = document.getElementById('notif-status-text');
+    var linkBtn = document.getElementById('link-settings');
+    if (linkBtn && window._openLinkSettingsModal) {
+        linkBtn.addEventListener('click', window._openLinkSettingsModal);
+    }
     if (!toggle) return;
     var enabled = localStorage.getItem('notifEnabled') === '1';
     var granted = ('Notification' in window) && Notification.permission === 'granted';

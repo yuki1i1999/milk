@@ -10753,8 +10753,13 @@
             transition: none !important;
         }
 
+        #keepalive-audio-switch .setting-pill-knob {
+            left: 3px;
+            transform: none;
+        }
         #keepalive-audio-switch.active .setting-pill-knob {
-            transform: translateX(20px);
+            left: 22px;
+            transform: none;
             background: #fff;
         }
 

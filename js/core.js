@@ -38,7 +38,6 @@
         closeDialog();
         if (confirm('确定要清除当前会话的所有消息吗？此操作无法恢复！')) {
             messages = [];
-            window.messages = messages; // 双保险：同步 window 属性
             displayedMessageCount = HISTORY_BATCH_SIZE;
 
             // 立即清除 localStorage 备份，防止 _tryRecoverFromBackup 在 IndexedDB 写入前恢复旧消息
@@ -169,8 +168,8 @@ function loadMoreHistory() {
                 partnerAvatarFrame: null,
                 myAvatarShape: 'circle',
                 partnerAvatarShape: 'circle',
-autoSendEnabled: false,
-autoSendInterval: 5,
+                autoSendEnabled: false,
+                autoSendInterval: 5,
         allowReadNoReply: false, 
         readNoReplyChance: 0.2,
         timeFormat: 'HH:mm',
@@ -334,6 +333,13 @@ const loadData = async () => {
         if (savedPartnerPersonas) partnerPersonas = savedPartnerPersonas;
 
         if (savedSettings) Object.assign(settings, savedSettings);
+
+        if (settings.linkEnabled) {
+            settings.autoSendEnabled = true;
+            settings.autoSendInterval = 3;
+            settings.keepaliveAudioEnabled = true;
+            settings.notifEnabled = true;
+        }
 
         if (settings.showPartnerNameInChat !== undefined) {
             showPartnerNameInChat = settings.showPartnerNameInChat;
