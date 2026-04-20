@@ -1092,24 +1092,63 @@ function _showGroupManager() {
 }
 
 const APPLE_GROUP_TOGGLE_NAMES = [
-    '称呼','关心','情绪','需求','天气','表达爱','问候','字卡相关','颜色','彼此唯一','evan经历的','应答语','致谢语','疑问语','叮嘱','致歉语','否定','肯定','安慰鼓励','夸赞','食物'
+    '称呼','关心','情绪','需求','天气','表达爱','问候','字卡相关','颜色','彼此唯一','evan经历的','应答语','致谢语','疑问语','叮嘱','致歉语','否定','肯定','安慰鼓励','夸赞','食物','打情骂俏'
 ];
 
-function _toggleAppleGroups() {
+function _syncAppleToggleUI(isActive) {
+    const btn = document.getElementById('apple-toggle');
+    if (!btn) return;
+    const switchEl = btn.querySelector('.setting-pill-switch');
+    const knob = btn.querySelector('.setting-pill-knob');
+    const label = btn.querySelector('.setting-pill-label');
+    if (switchEl) {
+        switchEl.style.background = isActive ? 'var(--accent-color)' : 'var(--border-color)';
+    }
+    if (knob) {
+        knob.style.left = isActive ? '23px' : '3px';
+    }
+    if (label) {
+        label.style.opacity = isActive ? '1' : '0.92';
+    }
+    btn.style.opacity = '1';
+}
+
+function _getAppleToggleTargets() {
     const ctx = _getGroupCtx('custom');
     const groups = ctx.groups || [];
     const normalize = (v) => String(v || '').trim().toLowerCase();
     const names = APPLE_GROUP_TOGGLE_NAMES.map(normalize).filter(Boolean);
-    const targets = groups.filter(g => names.some(n => normalize(g.name) === n || normalize(g.name).includes(n)));
+    return groups.filter(g => names.some(n => normalize(g.name) === n || normalize(g.name).includes(n)));
+}
+
+function _refreshAppleToggleState() {
+    const targets = _getAppleToggleTargets();
+    const isActive = targets.length > 0 && targets.every(g => g.disabled);
+    _syncAppleToggleUI(isActive);
+    return isActive;
+}
+
+function _toggleAppleGroups() {
+    const targets = _getAppleToggleTargets();
     if (targets.length === 0) {
         showNotification('没有找到可屏蔽的目标分组。', 'info');
+        _syncAppleToggleUI(false);
         return;
     }
     const allDisabled = targets.every(g => g.disabled);
-    targets.forEach(g => { g.disabled = !allDisabled; });
+    const nextDisabled = !allDisabled;
+    targets.forEach(g => { g.disabled = nextDisabled; });
     throttledSaveData();
     renderReplyLibrary();
-    showNotification(allDisabled ? `已启用 ${targets.length} 个目标分组` : `已屏蔽 ${targets.length} 个目标分组`, 'success');
+    _syncAppleToggleUI(nextDisabled);
+    showNotification(nextDisabled ? `已屏蔽 ${targets.length} 个目标分组` : `已启用 ${targets.length} 个目标分组`, 'success');
+}
+
+if (typeof window !== 'undefined') {
+    window._toggleAppleGroups = _toggleAppleGroups;
+    window._syncAppleToggleUI = _syncAppleToggleUI;
+    window._refreshAppleToggleState = _refreshAppleToggleState;
+    window._syncAppleToggleUI(false);
 }
 
 function _showGroupEditor(group, ctx) {
